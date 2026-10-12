@@ -545,6 +545,7 @@ jobs:
             build/AetherSDR.app "${{ matrix.deploy_target }}"
 
       - name: Import code signing certificate
+        if: false  # fork test build: no Apple certificates
         env:
           APPLE_CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
@@ -563,6 +564,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
       - name: Code sign application
+        if: false  # fork test build: no Apple certificates
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
@@ -612,6 +614,7 @@ jobs:
           echo "Code signing verified successfully"
 
       - name: Code sign DAX driver
+        if: false  # fork test build: no Apple certificates
         run: |
           codesign --force --options runtime --timestamp \
             --sign "Developer ID Application" \
@@ -621,6 +624,7 @@ jobs:
           echo "DAX driver signing verified"
 
       - name: Import installer certificate for PKG signing
+        if: false  # fork test build: no Apple certificates
         env:
           APPLE_INSTALLER_CERT_BASE64: ${{ secrets.APPLE_INSTALLER_CERT_BASE64 }}
           APPLE_INSTALLER_CERT_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERT_PASSWORD }}
@@ -632,6 +636,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
       - name: Build DAX driver PKG
+        if: false  # fork test build: no Apple certificates
         run: |
           # Extract version from CMakeLists.txt to keep driver PKG in sync
           APP_VERSION=$(sed -n 's/^project(AetherSDR VERSION \([^ ]*\).*/\1/p' CMakeLists.txt)
@@ -678,6 +683,7 @@ jobs:
           echo "DMG_FILENAME=AetherSDR-${SAFE_REF}-macOS-${{ matrix.label }}.dmg" >> "$GITHUB_ENV"
 
       - name: Create DMG
+        if: false  # fork test build: no Apple certificates
         run: |
           mkdir -p dmg-stage
           ditto build/AetherSDR.app dmg-stage/AetherSDR.app
@@ -722,6 +728,7 @@ jobs:
           fi
 
       - name: Sign DMG
+        if: false  # fork test build: no Apple certificates
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
@@ -730,6 +737,7 @@ jobs:
             "$DMG_FILENAME"
 
       - name: Notarize DMG
+        if: false  # fork test build: no Apple certificates
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
@@ -759,6 +767,13 @@ jobs:
 
       # Read the UUIDs back from the signed bundle the DMG was made from: the
       # archive is only worth attaching if they are the ones that ship.
+      - name: Ad-hoc sign and zip app (fork test build, unsigned by Apple)
+        run: |
+          codesign --force --deep --sign - build/AetherSDR.app
+          codesign --verify --deep --strict build/AetherSDR.app
+          ditto -c -k --keepParent build/AetherSDR.app \
+            "AetherSDR-${{ github.ref_name }}-macOS-${{ matrix.label }}.zip"
+
       - name: Package debug symbols
         continue-on-error: true   # never blocks the release; see "Split debug symbols"
         run: |
@@ -781,7 +796,7 @@ jobs:
         with:
           name: macOS-DMG-${{ matrix.label }}
           path: |
-            AetherSDR-*.dmg
+            AetherSDR-*.zip
             AetherSDR-*-symbols.tar.xz
 
       - name: Attach to release
